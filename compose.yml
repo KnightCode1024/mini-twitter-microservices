@@ -1,0 +1,3 @@
+include:
+  - ./frontend/compose.yml
+  - ./services/user-service/compose.yml

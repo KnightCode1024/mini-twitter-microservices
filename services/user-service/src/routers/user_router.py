@@ -1,0 +1,258 @@
+from dishka.integrations.fastapi import DishkaRoute, FromDishka
+from fastapi import APIRouter, HTTPException, Request, status, Response
+
+from core.rate_limiter import RateLimiter, Strategy, rate_limit
+from schemas.user import (
+    OTPCode,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    UserUpdate,
+    AccessToken,
+)
+from services import UserService
+from entrypoint.config import Config
+
+router = APIRouter(
+    prefix="/users",
+    tags=["Users"],
+    route_class=DishkaRoute,
+)
+
+
+@router.post("/register", response_model=UserResponse)
+@rate_limit(strategy=Strategy.IP, policy="3/m;10/h;20/d")
+async def register(
+    request: Request,
+    response: Response,
+    user_data: UserCreate,
+    rate_limiter: FromDishka[RateLimiter],
+    service: FromDishka[UserService],
+):
+    try:
+        return await service.register_user(user_data)
+    except ValueError as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{e}",
+        )
+
+
+@router.get("/verify-email")
+@rate_limit(strategy=Strategy.IP, policy="5/m;20/h")
+async def verify_email(
+    request: Request,
+    response: Response,
+    token: str,
+    rate_limiter: FromDishka[RateLimiter],
+    service: FromDishka[UserService],
+):
+    try:
+        return await service.verify_email(token)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+
+
+@router.post("/check-code")
+@rate_limit(strategy=Strategy.IP, policy="5/m;20/h")
+async def check_code(
+    request: Request,
+    response: Response,
+    code: OTPCode,
+    rate_limiter: FromDishka[RateLimiter],
+    config: FromDishka[Config],
+    service: FromDishka[UserService],
+    current_user: FromDishka[UserResponse],
+):
+    try:
+        tokens = await service.check_code(current_user, code)
+        response.set_cookie(
+            key="access_token",
+            value=tokens.access_token,
+            httponly=True,
+            secure=config.app.MODE == "prod",  # True for https,
+            samesite="lax",
+            max_age=config.auth_jwt.ACCESS_TOKEN_EXPIRE_MINUTES,
+            path="/",
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=tokens.refresh_token,
+            httponly=True,
+            secure=config.app.MODE == "prod",  # True for https,
+            samesite="lax",
+            max_age=config.auth_jwt.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+            path="/",
+        )
+        return {"message": "Login success"}
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e),
+        )
+
+
+@router.post("/resend-otp")
+@rate_limit(strategy=Strategy.IP, policy="2/m;5/h")
+async def resend_otp(
+    request: Request,
+    response: Response,
+    rate_limiter: FromDishka[RateLimiter],
+    service: FromDishka[UserService],
+    current_user: FromDishka[UserResponse],
+):
+    try:
+        return await service.resend_otp_code(current_user)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+@rate_limit(strategy=Strategy.IP, policy="5/m;20/h;50/d")
+@router.post("/login", response_model=AccessToken)
+async def login(
+    request: Request,
+    response: Response,
+    user_data: UserLogin,
+    rate_limiter: FromDishka[RateLimiter],
+    service: FromDishka[UserService],
+    config: FromDishka[Config],
+):
+    try:
+        access_token = await service.login_user(user_data)
+        response.set_cookie(
+            key="access_token",
+            value=access_token.access_token,
+            httponly=True,
+            secure=config.app.MODE == "prod",  # True for https,
+            samesite="lax",
+            max_age=5 * 60,
+            path="/",
+        )
+        return access_token
+    except ValueError as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"{e}",
+        )
+
+
+@router.get("/me", response_model=UserResponse)
+async def get_profile(
+    current_user: FromDishka[UserResponse],
+):
+    return current_user
+
+
+@router.post("/refresh")
+@rate_limit(strategy=Strategy.IP, policy="10/m;100/h")
+async def refresh_token(
+    request: Request,
+    response: Response,
+    config: FromDishka[Config],
+    rate_limiter: FromDishka[RateLimiter],
+    service: FromDishka[UserService],
+):
+    try:
+        refresh_token = request.cookies.get("refresh_token")
+        new_tokens = await service.refresh_token(refresh_token)
+        response.set_cookie(
+            key="access_token",
+            value=new_tokens.access_token,
+            httponly=True,
+            secure=config.app.MODE == "prod",  # True for https,
+            samesite="lax",
+            max_age=config.auth_jwt.ACCESS_TOKEN_EXPIRE_MINUTES,
+            path="/",
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=new_tokens.refresh_token,
+            httponly=True,
+            secure=config.app.MODE == "prod",  # True for https,
+            samesite="lax",
+            max_age=config.auth_jwt.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+            path="/",
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+        )
+    except LookupError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+        )
+
+
+@router.put("/me", response_model=UserResponse)
+async def update_profile(
+    user_data: UserUpdate,
+    service: FromDishka[UserService],
+    current_user: FromDishka[UserResponse],
+):
+    try:
+        return await service.update_user(
+            current_user.id,
+            user_data,
+            current_user,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+        )
+
+
+@router.get("/", response_model=list[UserResponse])
+async def get_all_users(
+    service: FromDishka[UserService],
+    current_user: FromDishka[UserResponse],
+):
+    try:
+        return await service.get_all_users(current_user)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{e}",
+        )
+
+
+@router.get("/{user_id}", response_model=UserResponse)
+async def get_user_by_id(
+    user_id: int,
+    service: FromDishka[UserService],
+    current_user: FromDishka[UserResponse],
+):
+    try:
+        return await service.get_user(user_id, current_user)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"{e}",
+        )
+
+
+@router.post("/logout")
+async def logout(
+    response: Response,
+):
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        domain=None,
+    )
+    response.delete_cookie(
+        key="refresh_token",
+        path="/",
+        domain=None,
+    )
+    return {"message": "Logout success"}
