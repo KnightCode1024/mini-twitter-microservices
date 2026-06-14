@@ -1,0 +1,42 @@
+services:
+  backend_tweet_service:
+    &backend
+    env_file: .env
+    build: .
+    restart: always
+    container_name: backend_tweet_service
+    volumes:
+      - .:/backend
+    working_dir: /backend
+    command: sh -c "uv run uvicorn tweet_service_api.main:get_app --factory --host 0.0.0.0 --port 8003 --reload"
+    ports:
+      - "8003:8003"
+    depends_on:
+      mongodb_tweet_service:
+        condition: service_healthy
+    networks:
+      - app_net
+
+  mongodb_tweet_service:
+    image: mongo:8 
+    container_name: mongodb_tweet_service
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_tweet_service_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
+      - MONGO_INITDB_DATABASE=${MONGO_DATABASE}
+    networks:
+      - app_net
+
+volumes:
+  mongodb_tweet_service_data:

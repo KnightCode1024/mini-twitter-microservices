@@ -1,6 +1,7 @@
 include:
   - ./frontend/compose.yml
   - ./services/user-service/compose.yml
+  - ./services/tweet-service/compose.yml
 
 networks:
   app_net:

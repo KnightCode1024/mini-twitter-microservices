@@ -6,21 +6,60 @@ Microservices practice and many new techologis
 
 ![Services Schema](services-schema.png)
 
-- user-service (Python, FastApi, Postgresql, Taskiq, Redis)
-- tweet-service (Python, ...)
-- timeline-service (Go, ...)
-- follow-service (Go, ...)
-- ml-service (Python, FastApi, ...)
-- media-service (Go, ...)
+### User
 
-- gateway
-- frontend
+- `Python`
+- `FastApi`
+- `Postgresql`
+- `Redis`
+- `RabbitMQ`
+- `TaskIQ`
+- `Dishka`
+- `SQLalchemy`
+- `Pydantic`
+- `Pydantic-Settings`
+- `Pip`
+
+### Tweet
+
+- `Python`
+- `FastApi`
+- `Mongo`
+- `Dishka`
+- `Pydantic`
+- `Pydantic-Settings`
+- `UV`
+
+## Media
+
+- `Go`
+
+### Timeline
+
+- `Go`
+
+### Follow
+
+- `Go`
+
+### ML
+
+- `Python`
+- `Fastapi`
+
+### Frontend
+
+- `TypeScript`
+- `React`
+
+### Gateway
+    pass
 
 ## Launch
 
 ### Setup user service
 
-1. Create `.env` 
+1. Create `.env`
 
 `services/user-service/.env`
 
@@ -65,6 +104,16 @@ openssl genrsa -out jwt-private.pem 2048
 openssl rsa -in jwt-private.pem -outform PEM -pubout -out jwt-public.pem
 ```
 
+### Setup tweet service
+
+1. Create `.env`
+
+```env
+MONGO_USERNAME=tweet_service_user
+MONGO_PASSWORD=12345678
+MONGO_DATABASE=tweet_service_db
+```
+
 ### Setup follow service
 
 soon
@@ -77,12 +126,18 @@ soon
 
 soon
 
-### Setup tweet service
-
-soon
-
 ### Up all services
 
 ```bash
 docker compose up --build -d
 ```
+
+## Services
+
+- `Frontend` - http://127.0.0.1:5173
+- `Gateway`
+- `User service` - http://127.0.0.1:8003/docs
+- `Tweet service` - http://127.0.0.1:8003/docs
+- `Media service`
+- `Follow service`
+- `ML service`
