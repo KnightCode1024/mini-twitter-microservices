@@ -5,8 +5,3 @@ include:
 networks:
   app_net:
     driver: bridge
-
-volumes:
-  user-service-db-data:
-  user-service-redis-data:
-  user-service-rabbitmq-data:
