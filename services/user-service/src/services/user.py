@@ -1,16 +1,13 @@
 import re
 
-from core.permissions import require_roles
 from core.uow import UnitOfWork
 from models import RoleEnum
 from repositories import IUserRepository
 from schemas.user import (
     AccessToken,
-    OTPCode,
     RefreshToken,
     TokenPair,
     UserCreate,
-    UserCreateConsole,
     UserLogin,
     UserResponse,
     UserUpdate,
@@ -22,12 +19,7 @@ from utils.jwt_utils import (
     hash_password,
     validate_password,
 )
-from utils.otp_utils import (
-    generate_otp_code,
-    generate_otp_secret,
-    verify_otp_code,
-)
-from tasks.email import send_otp_code, send_verify_email
+from tasks.email import send_verify_email
 
 
 class UserService:
@@ -69,22 +61,6 @@ class UserService:
                 role=user.role,
             )
 
-    async def check_code(
-        self,
-        user: UserResponse,
-        otp_code: OTPCode,
-    ) -> TokenPair:
-        otp_secret = await self.user_repository.get_otp_secret(user)
-
-        if not verify_otp_code(otp_code.otp_code, otp_secret):
-            raise ValueError("Not valid code")
-
-        tokens = TokenPair(
-            access_token=create_access_token({"sub": str(user.id)}),
-            refresh_token=create_refresh_token({"sub": str(user.id)}),
-        )
-        return tokens
-
     async def verify_email(self, token: str) -> bool:
         user = await self.user_repository.get_user_by_email_token(token)
         if user is None:
@@ -92,22 +68,6 @@ class UserService:
         async with self.uow:
             await self.user_repository.set_is_verify_user(user, token)
             return True
-
-    async def resend_otp_code(self, user: UserResponse) -> bool:
-        otp_secret = await self.user_repository.get_otp_secret(user)
-
-        if not otp_secret:
-            otp_secret = generate_otp_secret()
-            async with self.uow:
-                await self.user_repository.set_otp_secret(user, otp_secret)
-
-        otp_code = generate_otp_code(otp_secret)
-
-        await send_otp_code.kiq(
-            to_email=user.email,
-            otp_code=otp_code,
-        )
-        return True
 
     async def login_user(self, user_data: UserLogin) -> AccessToken:
         user = await self.user_repository.get_user_by_email(user_data.email)
@@ -119,23 +79,12 @@ class UserService:
         if not user.email_verified:
             raise ValueError("Email not verify")
 
-        otp_secret = generate_otp_secret()
-        otp_code = generate_otp_code(otp_secret)
-
-        async with self.uow:
-            await self.user_repository.set_otp_secret(user, otp_secret)
-
-        await send_otp_code.kiq(
-            to_email=user.email,
-            otp_code=otp_code,
+        tokens = TokenPair(
+            access_token=create_access_token({"sub": str(user.id)}),
+            refresh_token=create_refresh_token({"sub": str(user.id)}),
         )
+        return tokens
 
-        token = AccessToken(
-            access_token=create_access_token({"sub": str(user.id)}, 5),
-        )
-        return token
-
-    @require_roles([RoleEnum.ADMIN])
     async def update_user(
         self,
         user_id: int,
@@ -159,7 +108,6 @@ class UserService:
             role=updated.role,
         )
 
-    @require_roles([RoleEnum.ADMIN, RoleEnum.EMPLOYEE])
     async def get_user(
         self,
         user_id: int,
@@ -180,7 +128,6 @@ class UserService:
         user = await self.user_repository.get(user_id)
         return user
 
-    @require_roles([RoleEnum.ADMIN])
     async def get_all_users(
         self,
         user: UserResponse,
@@ -198,15 +145,12 @@ class UserService:
     ) -> TokenPair:
         try:
             payload = decode_jwt(payload.refresh_token)
-            print(f"Payload = {payload}")
         except Exception as exc:
             raise ValueError("Invalid token") from exc
         user_id = int(payload.get("sub"))
-        print(f"User id = {user_id}")
         if not user_id:
             raise ValueError("Invalid token payload")
         user = await self.user_repository.get(user_id)
-        print(f"User = {user}")
         if not user:
             raise LookupError("User not found")
         return TokenPair(
@@ -231,51 +175,15 @@ class UserService:
                 role=user.role,
             )
         except Exception as e:
-            print(f"Token verification error: {e}")
             return None
-
-    async def create_user_for_console(
-        self, user_data: UserCreateConsole
-    ) -> UserResponse:
-        try:
-            user_role = RoleEnum(user_data.role.lower())
-        except ValueError:
-            raise ValueError(
-                f"Invalid role '{user_data.role}'.",
-                "Must be one of: user, employee, admin",
-            )
-
-        self._validate_password(user_data.password, user_role)
-
-        existing_user = await self.user_repository.get_user_by_email(
-            user_data.email,
-        )
-        if existing_user is not None:
-            raise ValueError("User with this email already exists")
-
-        async with self.uow:
-            hashed_password = hash_password(user_data.password)
-            user_create_data = UserCreateConsole(
-                email=user_data.email,
-                username=user_data.username,
-                password=hashed_password,
-                role=user_role,
-            )
-            user = await self.user_repository.create(user_create_data)
-            return UserResponse(
-                id=user.id,
-                email=user.email,
-                username=user.username,
-                role=user.role,
-            )
 
     def _validate_password(self, password: str, role: RoleEnum) -> None:
 
-        if role in [RoleEnum.ADMIN, RoleEnum.EMPLOYEE]:
+        if role == RoleEnum.ADMIN:
             if len(password) < 12:
                 raise ValueError(
                     "Password must be at least 12 characters long ",
-                    "for admin/employee roles",
+                    "for admin role",
                 )
 
             if not re.search(r"[A-Z]", password):

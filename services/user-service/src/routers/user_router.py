@@ -3,12 +3,11 @@ from fastapi import APIRouter, HTTPException, Request, status, Response
 
 from core.rate_limiter import RateLimiter, Strategy, rate_limit
 from schemas.user import (
-    OTPCode,
+    TokenPair,
     UserCreate,
     UserLogin,
     UserResponse,
     UserUpdate,
-    AccessToken,
 )
 from services import UserService
 from entrypoint.config import Config
@@ -19,6 +18,37 @@ router = APIRouter(
     route_class=DishkaRoute,
 )
 
+def set_cookies(response: Response, tokens: TokenPair, config: Config):
+    response.set_cookie(
+        key="access_token",
+        value=tokens.access_token,
+        httponly=True,
+        secure=config.app.MODE == "prod",  # True for https,
+        samesite="lax",
+        max_age=config.auth_jwt.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=tokens.refresh_token,
+        httponly=True,
+        secure=config.app.MODE == "prod",  # True for https,
+        samesite="lax",
+        max_age=config.auth_jwt.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        path="/",
+    )
+
+def delete_cookies(response: Response):
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        domain=None,
+    )
+    response.delete_cookie(
+        key="refresh_token",
+        path="/",
+        domain=None,
+    )
 
 @router.post("/register", response_model=UserResponse)
 @rate_limit(strategy=Strategy.IP, policy="3/m;10/h;20/d")
@@ -57,65 +87,8 @@ async def verify_email(
         )
 
 
-@router.post("/check-code")
-@rate_limit(strategy=Strategy.IP, policy="5/m;20/h")
-async def check_code(
-    request: Request,
-    response: Response,
-    code: OTPCode,
-    rate_limiter: FromDishka[RateLimiter],
-    config: FromDishka[Config],
-    service: FromDishka[UserService],
-    current_user: FromDishka[UserResponse],
-):
-    try:
-        tokens = await service.check_code(current_user, code)
-        response.set_cookie(
-            key="access_token",
-            value=tokens.access_token,
-            httponly=True,
-            secure=config.app.MODE == "prod",  # True for https,
-            samesite="lax",
-            max_age=config.auth_jwt.ACCESS_TOKEN_EXPIRE_MINUTES,
-            path="/",
-        )
-        response.set_cookie(
-            key="refresh_token",
-            value=tokens.refresh_token,
-            httponly=True,
-            secure=config.app.MODE == "prod",  # True for https,
-            samesite="lax",
-            max_age=config.auth_jwt.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-            path="/",
-        )
-        return {"message": "Login success"}
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(e),
-        )
-
-
-@router.post("/resend-otp")
-@rate_limit(strategy=Strategy.IP, policy="2/m;5/h")
-async def resend_otp(
-    request: Request,
-    response: Response,
-    rate_limiter: FromDishka[RateLimiter],
-    service: FromDishka[UserService],
-    current_user: FromDishka[UserResponse],
-):
-    try:
-        return await service.resend_otp_code(current_user)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
-
-
 @rate_limit(strategy=Strategy.IP, policy="5/m;20/h;50/d")
-@router.post("/login", response_model=AccessToken)
+@router.post("/login", response_model=TokenPair)
 async def login(
     request: Request,
     response: Response,
@@ -125,19 +98,10 @@ async def login(
     config: FromDishka[Config],
 ):
     try:
-        access_token = await service.login_user(user_data)
-        response.set_cookie(
-            key="access_token",
-            value=access_token.access_token,
-            httponly=True,
-            secure=config.app.MODE == "prod",  # True for https,
-            samesite="lax",
-            max_age=5 * 60,
-            path="/",
-        )
-        return access_token
+        tokens = await service.login_user(user_data)
+        set_cookies(response, tokens, config)
+        return tokens
     except ValueError as e:
-        print(e)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"{e}",
@@ -163,24 +127,8 @@ async def refresh_token(
     try:
         refresh_token = request.cookies.get("refresh_token")
         new_tokens = await service.refresh_token(refresh_token)
-        response.set_cookie(
-            key="access_token",
-            value=new_tokens.access_token,
-            httponly=True,
-            secure=config.app.MODE == "prod",  # True for https,
-            samesite="lax",
-            max_age=config.auth_jwt.ACCESS_TOKEN_EXPIRE_MINUTES,
-            path="/",
-        )
-        response.set_cookie(
-            key="refresh_token",
-            value=new_tokens.refresh_token,
-            httponly=True,
-            secure=config.app.MODE == "prod",  # True for https,
-            samesite="lax",
-            max_age=config.auth_jwt.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-            path="/",
-        )
+        set_cookies(response, new_tokens, config)
+        return new_tokens
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -245,14 +193,5 @@ async def get_user_by_id(
 async def logout(
     response: Response,
 ):
-    response.delete_cookie(
-        key="access_token",
-        path="/",
-        domain=None,
-    )
-    response.delete_cookie(
-        key="refresh_token",
-        path="/",
-        domain=None,
-    )
+    delete_cookies(response)
     return {"message": "Logout success"}

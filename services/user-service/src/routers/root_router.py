@@ -3,15 +3,13 @@ from fastapi import APIRouter
 from routers import (
     dev_router,
     user_router,
-    message_router,
 )
 
-root_router = APIRouter(prefix="/api", tags=["API"])
+root_router = APIRouter(prefix="/api/v1")
 
 routers = [
     dev_router,
     user_router,
-    message_router,
 ]
 
 for router in routers:

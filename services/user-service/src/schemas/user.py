@@ -1,12 +1,12 @@
 import re
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, EmailStr
 
 from models import RoleEnum
 
 
 class UserEmail(BaseModel):
-    email: str = Field(..., max_length=255)
+    email: EmailStr = Field(..., max_length=255)
 
     @field_validator("email", mode="after")
     @classmethod
@@ -36,7 +36,7 @@ class UserLogin(UserEmail):
 
 class UserUpdate(BaseModel):
     username: str | None = Field(None, max_length=30)
-    email: str | None = Field(None, max_length=255)
+    email: EmailStr | None = Field(None, max_length=255)
     password: str | None = Field(None, max_length=255)
 
 
@@ -57,11 +57,3 @@ class RefreshToken(BaseModel):
 class TokenPair(BaseModel):
     access_token: str = Field(...)
     refresh_token: str = Field(...)
-
-
-class OTPCode(BaseModel):
-    otp_code: str
-
-
-class AccessToken(BaseModel):
-    access_token: str = Field(...)

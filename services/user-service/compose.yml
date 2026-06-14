@@ -1,12 +1,13 @@
 services:
-  user-service-backend:
+  backend_user_service:
     &backend
     env_file: .env
-    build: ./backend
+    build: .
     restart: always
+    container_name: backend_user_service
     volumes:
-      - ./backend:/backend
-      - ./backend/certs:/backend/certs:ro
+      - .:/backend
+      - ./certs:/backend/certs:ro
     working_dir: /backend
     environment:
       - PYTHONPATH=src
@@ -24,19 +25,27 @@ services:
       - EMAIL_USE_SSL=${EMAIL_USE_SSL}
       - RABBITMQ_URL=${RABBITMQ_URL}
       - FRONTEND_URL=${FRONTEND_URL}
-    command: sh -c "alembic upgrade head && uvicorn run:make_app --factory --host 0.0.0.0 --port 8002 --reload"
+      - APP_MODE=${APP_MODE}
+      - APP_PORT=${APP_PORT}
+      - APP_HOST=${APP_HOST}
+      - APP_NAME=${APP_NAME}
+    # command: sh -c "alembic upgrade head && uvicorn run:make_app --factory --host ${APP_HOST} --port ${APP_PORT} --reload"
+    command: sh -c "uvicorn run:make_app --factory --host ${APP_HOST} --port ${APP_PORT} --reload"
     ports:
-      - "8002:8000"
+      - "${APP_PORT}:${APP_PORT}"
     depends_on:
-      postgres:
+      db_user_service:
         condition: service_healthy
-      rabbitmq:
+      rabbitmq_user_service:
+        condition: service_healthy
+      redis_user_service:
         condition: service_healthy
     networks:
       - app_net
 
-  rabbitmq:
+  rabbitmq_user_service:
     image: rabbitmq:4-management-alpine
+    container_name: rabbitmq_user_service
     ports:
       - "5673:5672"
       - "15673:15672"
@@ -44,34 +53,29 @@ services:
       RABBITMQ_DEFAULT_USER: "guest"
       RABBITMQ_DEFAULT_PASS: "guest"
     volumes:
-      - user_service_rabbitmq-data:/var/lib/rabbitmq
+      - rabbitmq_user_service_data:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_running", "-q"]
       interval: 10s
       timeout: 5s
       retries: 8
-
     networks:
       - app_net
 
-  worker:
+  worker_user_service:
     <<: *backend
+    container_name: worker_user_service
     ports: []
     command: taskiq worker core:broker --workers 1 --fs-discover --tasks-pattern **/tasks/*.py
-    environment:
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
+    networks:
+      - app_net
 
-  postgres:
+  db_user_service:
     env_file: .env
     image: postgres:18-alpine
+    container_name: db_user_service
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - db_user_service_data:/var/lib/postgresql
     ports:
       - "5434:5432"
     environment:
@@ -87,12 +91,13 @@ services:
       - app_net
     restart: always
 
-  redis:
+  redis_user_service:
     image: redis:8-alpine
+    container_name: redis_user_service
     ports:
       - "6381:6379"
     volumes:
-      - user_service_redis-data:/data
+      - redis_user_service_data:/data
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
@@ -101,11 +106,7 @@ services:
     networks:
       - app_net
 
-networks:
-  app_net:
-    driver: bridge
-
 volumes:
-  user_service_postgres-data:
-  user_service_redis-data:
-  user_service_rabbitmq-data:
+  db_user_service_data:
+  redis_user_service_data:
+  rabbitmq_user_service_data:

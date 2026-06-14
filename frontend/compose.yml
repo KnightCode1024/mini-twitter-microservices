@@ -1,11 +1,12 @@
 services:
   frontend:
+    build: .
     restart: always
     ports:
       - "5173:5173"
-    depends_on:
-      - backend
     volumes:
-      - ./frontend:/frontend
+      - .:/frontend
       - /frontend/node_modules
     command: npm run dev
+    networks:
+      - app_net

@@ -11,11 +11,12 @@ from models import Base
 
 class RoleEnum(StrEnum):
     USER = "user"
-    EMPLOYEE = "employee"
     ADMIN = "admin"
 
 
 class User(Base):
+    __tablename__ = "users"
+
     username: Mapped[str] = mapped_column(
         String(255),
         nullable=False,
@@ -33,7 +34,6 @@ class User(Base):
         SQLEnum(
             RoleEnum,
             name="roleenum",
-            values_callable=lambda enum: [e.value for e in enum],
         ),
         default=RoleEnum.USER,
         nullable=False,

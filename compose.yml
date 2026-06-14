@@ -1,3 +1,12 @@
 include:
   - ./frontend/compose.yml
   - ./services/user-service/compose.yml
+
+networks:
+  app_net:
+    driver: bridge
+
+volumes:
+  user-service-db-data:
+  user-service-redis-data:
+  user-service-rabbitmq-data:

@@ -18,4 +18,33 @@ Microservices practice and many new techologis
 
 ## Launch
 
-soon
+1. Create `.env` files
+
+`services/user-service/.env`
+
+```env
+POSTGRES_USER=user_service_user
+POSTGRES_PASSWORD=12345678
+POSTGRES_NAME=user_service_db
+POSTGRES_HOST=db_user_service
+POSTGRES_PORT=5432
+
+REDIS_HOST=redis_user_service
+REDIS_PORT=6379
+
+EMAIL_HOST=smtp.yandex.ru
+EMAIL_PORT=465
+EMAIL_USERNAME=n17k17@yandex.ru
+EMAIL_PASSWORD=SuperPsw
+EMAIL_USE_SSL=True
+
+RABBITMQ_URL=amqp://guest:guest@rabbitmq_user_service:5672
+
+FRONTEND_URL=http://localhost:5173
+```
+
+2. Up all services
+
+```bash
+docker compose up --build -d
+```
