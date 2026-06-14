@@ -48,7 +48,3 @@ class User(Base):
         default=uuid.uuid4(),
         nullable=True,
     )
-    otp_secret: Mapped[str] = mapped_column(
-        String(),
-        nullable=True,
-    )

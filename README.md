@@ -18,7 +18,9 @@ Microservices practice and many new techologis
 
 ## Launch
 
-1. Create `.env` files
+### Setup user service
+
+1. Create `.env` 
 
 `services/user-service/.env`
 
@@ -43,7 +45,43 @@ RABBITMQ_URL=amqp://guest:guest@rabbitmq_user_service:5672
 FRONTEND_URL=http://localhost:5173
 ```
 
-2. Up all services
+2. Generate jwt certs
+
+```bash
+# Перейти в папку бекенда
+cd services/user-service
+
+# Создание папки для ключей
+mkdir certs
+
+# Переходим в папку для ключей
+cd certs
+
+# Если есть openssl
+# Генерация RSA приватного ключа
+openssl genrsa -out jwt-private.pem 2048
+
+# Генерация публичного ключа
+openssl rsa -in jwt-private.pem -outform PEM -pubout -out jwt-public.pem
+```
+
+### Setup follow service
+
+soon
+
+### Setup media service
+
+soon
+
+### Setup ml service
+
+soon
+
+### Setup tweet service
+
+soon
+
+### Up all services
 
 ```bash
 docker compose up --build -d

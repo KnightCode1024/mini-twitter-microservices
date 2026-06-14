@@ -29,8 +29,7 @@ services:
       - APP_PORT=${APP_PORT}
       - APP_HOST=${APP_HOST}
       - APP_NAME=${APP_NAME}
-    # command: sh -c "alembic upgrade head && uvicorn run:make_app --factory --host ${APP_HOST} --port ${APP_PORT} --reload"
-    command: sh -c "uvicorn run:make_app --factory --host ${APP_HOST} --port ${APP_PORT} --reload"
+    command: sh -c "alembic upgrade head && uvicorn run:make_app --factory --host ${APP_HOST} --port ${APP_PORT} --reload"
     ports:
       - "${APP_PORT}:${APP_PORT}"
     depends_on:
