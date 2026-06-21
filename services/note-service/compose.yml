@@ -1,0 +1,45 @@
+services:
+  backend_note_service:
+    build: .
+    container_name: backend_note_service
+    environment:
+      - APP_HOST=${APP_HOST}
+      - APP_PORT=${APP_HOST}
+      - APP_MODE=${APP_MODE}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_NAME=${DB_NAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+    command: ./app
+    ports:
+      - "${APP_PORT}:${APP_PORT}"
+    depends_on:
+      db_note_service:
+        condition: service_healthy
+    networks:
+      - app_net
+
+  db_note_service:
+    image: postgres:18-alpine
+    container_name: db_note_service
+    volumes:
+      - db_note_service_data:/var/lib/postgresql
+    ports:
+      - "5435:5432"
+    environment:
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_net
+    restart: always
+      
+
+volumes:
+  db_note_service_data:

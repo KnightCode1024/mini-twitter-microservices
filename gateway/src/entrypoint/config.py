@@ -88,6 +88,16 @@ class RabbitMQConfig(BaseSettings):
     URL: str
 
 
+class ServiceConfig(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="SERVICE_",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    NOTE_URL: str
+
+
 class APPConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="APP_",
@@ -114,6 +124,7 @@ class Config(BaseSettings):
     frontend: FrontendConfig = FrontendConfig()
     app: APPConfig = APPConfig()
     otp: OTPConfig = OTPConfig()
+    service: ServiceConfig = ServiceConfig()
 
 
 def create_config() -> Config:

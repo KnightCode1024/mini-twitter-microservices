@@ -1,10 +1,10 @@
 include:
   - ./frontend/compose.yml
   - ./gateway/compose.yml
-  - ./services/document-service/compose.yml
-  - ./services/ml-service/compose.yml
-  - ./services/search-service/compose.yml
-  - ./services/user-note-service/compose.yml
+  # - ./services/document-service/compose.yml
+  # - ./services/ml-service/compose.yml
+  # - ./services/search-service/compose.yml
+  - ./services/note-service/compose.yml
 
 networks:
   app_net:

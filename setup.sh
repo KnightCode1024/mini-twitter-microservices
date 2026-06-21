@@ -1,1 +1,2 @@
-docker compose up --build -d
+# Script in progress
+echo "Please, setup apps in handle mode"

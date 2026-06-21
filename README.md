@@ -4,7 +4,14 @@ Microservices practice and many new techologis
 
 ## Services
 
-### Setup user service
+setup each services or execute setup script (script in progress)
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+### Setup Gateway
 
 1. Create `.env`
 
@@ -51,13 +58,32 @@ openssl genrsa -out jwt-private.pem 2048
 openssl rsa -in jwt-private.pem -outform PEM -pubout -out jwt-public.pem
 ```
 
+### Setup Note service
+
+1. Create `.env`
+
+```env
+APP_HOST=0.0.0.0
+APP_PORT=8003
+APP_MODE=debug
+
+DB_HOST=note_service_postgres
+DB_PORT=5432
+DB_USER=note_service_user
+DB_NAME=note_service_db
+DB_PASSWORD=12345678
+```
+
 ### Up all services
 
 ```bash
 docker compose up --build -d
 ```
 
+
+
 ## Services
 
 - `Frontend` - http://127.0.0.1:5173
 - `Gateway` - http://127.0.0.1:8002/docs
+- `Note service` - http://127.0.0.1:8003/ping
